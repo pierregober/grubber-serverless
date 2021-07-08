@@ -3,7 +3,8 @@ const express = require("express");
 const uuid = require("uuid");
 
 const IS_OFFLINE = process.env.NODE_ENV !== "production";
-const GRUBBER_TABLE = process.env.TABLE;
+const GRUBBER_USERS = process.env.TABLE_GRUBBER_USERS;
+const GRUBBER_RESTAURANTS = process.env.TABLE_GRUBBER_RESTAURANTS;
 
 const dynamoDb =
   IS_OFFLINE === true
@@ -15,9 +16,128 @@ const dynamoDb =
 
 const router = express.Router();
 
+//====================GRUBBER RESTAURANTS
+
+router.get("/grubber/restaurants", (req, res) => {
+  const params = {
+    TableName: GRUBBER_RESTAURANTS,
+  };
+  dynamoDb.scan(params, (error, result) => {
+    if (error) {
+      res
+        .status(400)
+        .json({ error: "Error fetching the grubber data -- restaurants" });
+    }
+    res.json(result.Items);
+  });
+});
+
+router.get("/grubber/restaurants/:id", (req, res) => {
+  const id = req.params.id;
+
+  const params = {
+    TableName: GRUBBER_RESTAURANTS,
+    Key: {
+      id,
+    },
+  };
+
+  dynamoDb.get(params, (error, result) => {
+    if (error) {
+      res.status(400).json({ error: "Error retrieving grubber restaurant" });
+    }
+    if (result.Item) {
+      res.json(result.Item);
+    } else {
+      res
+        .status(404)
+        .json({ error: `Grubber restaurant with id: ${id} not found` });
+    }
+  });
+});
+
+router.post("/grubber/restaurants", (req, res) => {
+  const description = req.body.description;
+  const restaurantName = req.body.restaurantName;
+  const restaurantImages = req.body.restaurantImages;
+  const url = req.body.url;
+  const id = uuid.v4();
+
+  const params = {
+    TableName: GRUBBER_RESTAURANTS,
+    Item: {
+      id,
+      description,
+      restaurantName,
+      restaurantImages,
+      url,
+    },
+  };
+
+  dynamoDb.put(params, (error) => {
+    if (error) {
+      res.status(400).json({ error: "Could not create Grubber restaurant" });
+    }
+    res.json({
+      id,
+      description,
+      restaurantName,
+      restaurantImages,
+      url,
+    });
+  });
+});
+
+router.delete("/grubber/restaurants/:id", (req, res) => {
+  const id = req.params.id;
+
+  const params = {
+    TableName: GRUBBER_RESTAURANTS,
+    Key: {
+      id,
+    },
+  };
+
+  dynamoDb.delete(params, (error) => {
+    if (error) {
+      res.status(400).json({ error: "Could not delete Grubber restaurant" });
+    }
+    res.json({ success: true });
+  });
+});
+
+/*
+router.put("/grubber", (req, res) => {
+  const restaurantName = req.body.restaurantName;
+  const restaurantImages = req.body.restaurantImages;
+  const url = req.body.url;
+  const id = req.body.id;
+
+  const params = {
+    TableName: GRUBBER_RESTAURANTS,
+    Key: {
+      id,
+    },
+    UpdateExpression: "set #name = :name",
+    ExpressionAttributeNames: { "#name": "name" },
+    ExpressionAttributeValues: { ":name": name },
+    ReturnValues: "ALL_NEW",
+  };
+
+  dynamoDb.update(params, (error, result) => {
+    if (error) {
+      res.status(400).json({ error: "Could not update Grubber user" });
+    }
+    res.json(result.Attributes);
+  });
+});
+*/
+
+//====================GRUBBER USERS
+
 router.get("/grubber", (req, res) => {
   const params = {
-    TableName: GRUBBER_TABLE,
+    TableName: GRUBBER_USERS,
   };
   dynamoDb.scan(params, (error, result) => {
     if (error) {
@@ -33,7 +153,7 @@ router.get("/grubber/:id", (req, res) => {
   const id = req.params.id;
 
   const params = {
-    TableName: GRUBBER_TABLE,
+    TableName: GRUBBER_USERS,
     Key: {
       id,
     },
@@ -56,7 +176,7 @@ router.post("/grubber", (req, res) => {
   const id = uuid.v4();
 
   const params = {
-    TableName: GRUBBER_TABLE,
+    TableName: GRUBBER_USERS,
     Item: {
       id,
       name,
@@ -78,7 +198,7 @@ router.delete("/grubber/:id", (req, res) => {
   const id = req.params.id;
 
   const params = {
-    TableName: GRUBBER_TABLE,
+    TableName: GRUBBER_USERS,
     Key: {
       id,
     },
@@ -97,7 +217,7 @@ router.put("/grubber", (req, res) => {
   const name = req.body.name;
 
   const params = {
-    TableName: GRUBBER_TABLE,
+    TableName: GRUBBER_USERS,
     Key: {
       id,
     },
