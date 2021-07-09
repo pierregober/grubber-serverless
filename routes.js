@@ -5,6 +5,7 @@ const uuid = require("uuid");
 const IS_OFFLINE = process.env.NODE_ENV !== "production";
 const GRUBBER_USERS = process.env.TABLE_GRUBBER_USERS;
 const GRUBBER_RESTAURANTS = process.env.TABLE_GRUBBER_RESTAURANTS;
+const GRUBBER_DIETS = process.env.TABLE_GRUBBER_DIETS;
 
 const dynamoDb =
   IS_OFFLINE === true
@@ -16,7 +17,7 @@ const dynamoDb =
 
 const router = express.Router();
 
-//====================GRUBBER RESTAURANTS
+//====================GRUBBER RESTAURANTS (Really only for queries to find the total or a specific one)
 
 router.get("/grubber/restaurants", (req, res) => {
   const params = {
@@ -212,18 +213,56 @@ router.delete("/grubber/:id", (req, res) => {
   });
 });
 
-router.put("/grubber", (req, res) => {
+router.put("/grubber/favorites/add", (req, res) => {
   const id = req.body.id;
   const name = req.body.name;
+  const favorites = req.body.favorites ?? []; //testing out a nullish coalescing op + this is not the entire favortie sobject you should only be passing back the id
+  var favoritesArr = []; //this is our favorites collector
+  // const diet = req.body.diet ?? [];
+
+  //from here grab the current array of favorites.
+  //may have to put into a promise --------
+
+  const getFavoritesParams = {
+    TableName: GRUBBER_USERS,
+    Key: {
+      id,
+    },
+  };
+
+  dynamoDb.get(getFavoritesParams, (error, result) => {
+    if (error) {
+      res
+        .status(400)
+        .json({
+          error:
+            "Error retrieving grubber user -- may result in overwrite of favorites",
+        });
+    }
+    if (result.Item) {
+      res.json(result.Item);
+      favoritesArr = result.Item;
+    } else {
+      res
+        .status(404)
+        .json({
+          error: `Grubber user with id: ${id} not found - may result in overwrite of favorites`,
+        });
+    }
+  });
+
+  console.log("LOOK PIERRE!", favoritesArr);
+
+  //from that data filter ones that are there
 
   const params = {
     TableName: GRUBBER_USERS,
     Key: {
       id,
     },
-    UpdateExpression: "set #name = :name",
-    ExpressionAttributeNames: { "#name": "name" },
-    ExpressionAttributeValues: { ":name": name },
+    UpdateExpression: "set #name = :name, #favorites = :favorites",
+    ExpressionAttributeNames: { "#name": "name", "#favorites": "favorites" },
+    ExpressionAttributeValues: { ":name": name, ":favorites": favorites },
     ReturnValues: "ALL_NEW",
   };
 
@@ -232,6 +271,21 @@ router.put("/grubber", (req, res) => {
       res.status(400).json({ error: "Could not update Grubber user" });
     }
     res.json(result.Attributes);
+  });
+});
+
+//====================GRUBBER DIETS (Really only for queries to find the total or a specific one)
+router.get("/grubber/diets", (req, res) => {
+  const params = {
+    TableName: GRUBBER_DIETS,
+  };
+  dynamoDb.scan(params, (error, result) => {
+    if (error) {
+      res
+        .status(400)
+        .json({ error: "Error fetching the grubber data -- diets" });
+    }
+    res.json(result.Items);
   });
 });
 
