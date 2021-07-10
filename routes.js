@@ -251,21 +251,22 @@ router.put("/grubber/favorites/add", (req, res) => {
   });
 
   const reduceFavoriteArr = (data) => {
-    if (!data.length) {
+    var newData = data;
+    if (!newData.length) {
       dataSendOff(favoritesRequested);
     } else {
       function filterData(cb) {
-        console.log(data, favoritesRequested);
-        data.filter((a) => {
+        newData.filter((a) => {
           if (checked == false) {
-            console.log(a.id, favoritesRequested.id);
             if (a.id == favoritesRequested.id) {
-              data.push(favoritesRequested);
               checked = true;
             }
           }
         });
-        console.log("first data:", data);
+
+        if (!checked) {
+          newData.push(favoritesRequested);
+        }
         return cb(null);
       }
 
@@ -273,8 +274,7 @@ router.put("/grubber/favorites/add", (req, res) => {
         if (error) {
           return;
         }
-        console.log("second data:", data);
-        dataSendOff(data);
+        dataSendOff(newData);
       }
       filterData(cb);
     }
@@ -282,7 +282,6 @@ router.put("/grubber/favorites/add", (req, res) => {
 
   //from that data filter ones that are there
   const dataSendOff = (favorites) => {
-    console.log("favorites", favorites);
     const params = {
       TableName: GRUBBER_USERS,
       Key: {
