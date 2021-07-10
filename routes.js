@@ -216,8 +216,8 @@ router.delete("/grubber/:id", (req, res) => {
 router.put("/grubber/favorites/add", (req, res) => {
   const id = req.body.id;
   const name = req.body.name;
-  const favorites = req.body.favorites ?? []; //testing out a nullish coalescing op + this is not the entire favortie sobject you should only be passing back the id
-  var favoritesArr = []; //this is our favorites collector
+  const favoritesRequested = req.body.favorites ?? []; //testing out a nullish coalescing op + this is not the entire favortie sobject you should only be passing back the id
+  var checked = false;
   // const diet = req.body.diet ?? [];
 
   //from here grab the current array of favorites.
@@ -232,46 +232,75 @@ router.put("/grubber/favorites/add", (req, res) => {
 
   dynamoDb.get(getFavoritesParams, (error, result) => {
     if (error) {
-      res
-        .status(400)
-        .json({
-          error:
-            "Error retrieving grubber user -- may result in overwrite of favorites",
-        });
+      res.status(400).json({
+        error:
+          "Error retrieving grubber user -- may result in overwrite of favorites",
+      });
     }
     if (result.Item) {
-      res.json(result.Item);
-      favoritesArr = result.Item;
+      var f = result.Item.favorites ?? [];
+      if (typeof f == "undefined") {
+        f = [];
+      }
+      reduceFavoriteArr(f);
     } else {
-      res
-        .status(404)
-        .json({
-          error: `Grubber user with id: ${id} not found - may result in overwrite of favorites`,
-        });
+      res.status(404).json({
+        error: `Grubber user with id: ${id} not found - may result in overwrite of favorites`,
+      });
     }
   });
 
-  console.log("LOOK PIERRE!", favoritesArr);
+  const reduceFavoriteArr = (data) => {
+    if (!data.length) {
+      dataSendOff(favoritesRequested);
+    } else {
+      function filterData(cb) {
+        console.log(data, favoritesRequested);
+        data.filter((a) => {
+          if (checked == false) {
+            console.log(a.id, favoritesRequested.id);
+            if (a.id == favoritesRequested.id) {
+              data.push(favoritesRequested);
+              checked = true;
+            }
+          }
+        });
+        console.log("first data:", data);
+        return cb(null);
+      }
 
-  //from that data filter ones that are there
-
-  const params = {
-    TableName: GRUBBER_USERS,
-    Key: {
-      id,
-    },
-    UpdateExpression: "set #name = :name, #favorites = :favorites",
-    ExpressionAttributeNames: { "#name": "name", "#favorites": "favorites" },
-    ExpressionAttributeValues: { ":name": name, ":favorites": favorites },
-    ReturnValues: "ALL_NEW",
+      function cb(error) {
+        if (error) {
+          return;
+        }
+        console.log("second data:", data);
+        dataSendOff(data);
+      }
+      filterData(cb);
+    }
   };
 
-  dynamoDb.update(params, (error, result) => {
-    if (error) {
-      res.status(400).json({ error: "Could not update Grubber user" });
-    }
-    res.json(result.Attributes);
-  });
+  //from that data filter ones that are there
+  const dataSendOff = (favorites) => {
+    console.log("favorites", favorites);
+    const params = {
+      TableName: GRUBBER_USERS,
+      Key: {
+        id,
+      },
+      UpdateExpression: "set #name = :name, #favorites = :favorites",
+      ExpressionAttributeNames: { "#name": "name", "#favorites": "favorites" },
+      ExpressionAttributeValues: { ":name": name, ":favorites": favorites },
+      ReturnValues: "ALL_NEW",
+    };
+
+    dynamoDb.update(params, (error, result) => {
+      if (error) {
+        res.status(400).json({ error: "Could not update Grubber user" });
+      }
+      res.json(result.Attributes);
+    });
+  };
 });
 
 //====================GRUBBER DIETS (Really only for queries to find the total or a specific one)
