@@ -17,7 +17,7 @@ const dynamoDb =
 
 const router = express.Router();
 
-//====================GRUBBER RESTAURANTS (Really only for queries to find the total or a specific one)
+//====================GRUBBER RESTAURANTS (Really only for queries to find the total or a specific one) NO PUT YET
 
 router.get("/grubber/restaurants", (req, res) => {
   const params = {
@@ -107,33 +107,6 @@ router.delete("/grubber/restaurants/:id", (req, res) => {
   });
 });
 
-/*
-router.put("/grubber", (req, res) => {
-  const restaurantName = req.body.restaurantName;
-  const restaurantImages = req.body.restaurantImages;
-  const url = req.body.url;
-  const id = req.body.id;
-
-  const params = {
-    TableName: GRUBBER_RESTAURANTS,
-    Key: {
-      id,
-    },
-    UpdateExpression: "set #name = :name",
-    ExpressionAttributeNames: { "#name": "name" },
-    ExpressionAttributeValues: { ":name": name },
-    ReturnValues: "ALL_NEW",
-  };
-
-  dynamoDb.update(params, (error, result) => {
-    if (error) {
-      res.status(400).json({ error: "Could not update Grubber user" });
-    }
-    res.json(result.Attributes);
-  });
-});
-*/
-
 //====================GRUBBER USERS
 
 router.get("/grubber", (req, res) => {
@@ -215,13 +188,8 @@ router.delete("/grubber/:id", (req, res) => {
 
 router.put("/grubber/favorites/add", (req, res) => {
   const id = req.body.id;
-  const name = req.body.name;
-  const favoritesRequested = req.body.favorites ?? []; //testing out a nullish coalescing op + this is not the entire favortie sobject you should only be passing back the id
+  const favoritesRequested = req.body.favorites ?? [];
   var checked = false;
-  // const diet = req.body.diet ?? [];
-
-  //from here grab the current array of favorites.
-  //may have to put into a promise --------
 
   const getFavoritesParams = {
     TableName: GRUBBER_USERS,
@@ -280,6 +248,86 @@ router.put("/grubber/favorites/add", (req, res) => {
     }
   };
 
+  const dataSendOff = (favorites) => {
+    const params = {
+      TableName: GRUBBER_USERS,
+      Key: {
+        id,
+      },
+      UpdateExpression: "set #favorites = :favorites",
+      ExpressionAttributeNames: { "#favorites": "favorites" },
+      ExpressionAttributeValues: { ":favorites": favorites },
+      ReturnValues: "ALL_NEW",
+    };
+
+    dynamoDb.update(params, (error, result) => {
+      if (error) {
+        res
+          .status(400)
+          .json({ error: "Could not update Grubber user -- favaorites" });
+      }
+      res.json(result.Attributes);
+    });
+  };
+});
+
+router.put("/grubber/favorites/delete", (req, res) => {
+  const id = req.body.id;
+  const favoritesRequested = req.body.favorites ?? [];
+  var checked = false;
+
+  const getFavoritesParams = {
+    TableName: GRUBBER_USERS,
+    Key: {
+      id,
+    },
+  };
+
+  dynamoDb.get(getFavoritesParams, (error, result) => {
+    if (error) {
+      res.status(400).json({
+        error:
+          "Error retrieving grubber user -- may result in overwrite of favorites",
+      });
+    }
+    if (result.Item) {
+      var f = result.Item.favorites ?? [];
+      if (typeof f == "undefined") {
+        f = [];
+      }
+      reduceFavoriteArr(f);
+    } else {
+      res.status(404).json({
+        error: `Grubber user with id: ${id} not found - may result in overwrite of favorites`,
+      });
+    }
+  });
+
+  const reduceFavoriteArr = (data) => {
+    var newData = data;
+    function filterData(cb) {
+      newData.filter((a, index) => {
+        if (checked == false) {
+          if (a.id == favoritesRequested.id) {
+            //for some odd reason if there's two instances
+            checked = true;
+            newData.splice(index, 1);
+            return;
+          }
+        }
+      });
+      return cb(null);
+    }
+
+    function cb(error) {
+      if (error) {
+        return;
+      }
+      dataSendOff(newData);
+    }
+    filterData(cb);
+  };
+
   //from that data filter ones that are there
   const dataSendOff = (favorites) => {
     const params = {
@@ -287,15 +335,17 @@ router.put("/grubber/favorites/add", (req, res) => {
       Key: {
         id,
       },
-      UpdateExpression: "set #name = :name, #favorites = :favorites",
-      ExpressionAttributeNames: { "#name": "name", "#favorites": "favorites" },
-      ExpressionAttributeValues: { ":name": name, ":favorites": favorites },
+      UpdateExpression: "set #favorites = :favorites",
+      ExpressionAttributeNames: { "#favorites": "favorites" },
+      ExpressionAttributeValues: { ":favorites": favorites },
       ReturnValues: "ALL_NEW",
     };
 
     dynamoDb.update(params, (error, result) => {
       if (error) {
-        res.status(400).json({ error: "Could not update Grubber user" });
+        res
+          .status(400)
+          .json({ error: "Could not update Grubber user favorites -- delete" });
       }
       res.json(result.Attributes);
     });
